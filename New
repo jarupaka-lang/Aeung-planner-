@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>OOH Sales Planner — Plan B Media</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+const firebaseConfig = {
+  apiKey:"AIzaSyCZHQ0Y6SyayqieOsPlYHfrDKiJZ5UywRM",
+  authDomain:"planb-sales.firebaseapp.com",
+  projectId:"planb-sales",
+  storageBucket:"planb-sales.firebasestorage.app",
+  messagingSenderId:"420343239184",
+  appId:"1:420343239184:web:3af5de1159940aa679f095"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+async function loadFromFirebase(){
+  try {
+    setStatus("⏳ กำลังโหลด...");
+    const snap = await getDoc(doc(db,"data","main"));
+    if(snap.exists()){
+      const d=snap.data();
+      if(d.campaigns){campaigns=d.campaigns;localStorage.setItem(SK,JSON.stringify(campaigns));}
+      if(d.wpData){wpData=d.wpData;localStorage.setItem(WK,JSON.stringify(wpData));}
+      if(d.overrides){overrides=d.overrides;localStorage.setItem(OK,JSON.stringify(overrides));}
+      if(d.salesName){salesName=d.salesName;localStorage.setItem(NK,salesName);}
+    }
+    setStatus("");
+    updateExportBtns();
+    renderNameDisplay();
+    rolloverPendingTasks();
+    renderAll();
+  } catch(e){setStatus("⚠️ โหลดไม่สำเร็จ",3000);}
+}
+window._saveToFirebase = async function(){
+  try { await setDoc(doc(db,"data","main"),{campaigns,wpData,overrides,salesName}); }
+  catch(e){ setStatus("⚠️ Cloud บันทึกไม่สำเร็จ",3000); }
+};
+loadFromFirebase();
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#5B4EE8;--primary-light:#EEEDFE;--primary-mid:#AFA9EC;
+  --accent:#1D9E75;--accent-light:#E1F5EE;
+  --warn:#D85A30;--warn-light:#FAECE7;
+  --danger:#E24B4A;--danger-light:#FCEBEB;
+  --amber:#BA7517;--amber-light:#FAEEDA;
+  --blue:#185FA5;--blue-light:#E6F1FB;
+  --gray:#5F5E5A;--gray-light:#F1EFE8;
+  --bg:#F8F7FF;--surface:#fff;--border:#E8E6F8;
+  --text:#1a1a2e;--text2:#6B6B8A;--text3:#9B9BB5;
+  --radius:10px;--radius-lg:14px;--shadow:0 2px 12px rgba(91,78,232,.07);
+}
+body{font-family:'Sarabun',sans-serif;font-size:14px;background:var(--bg);color:var(--text);min-height:100vh}
+/* Header */
+.header{background:linear-gradient(135deg,#5B4EE8 0%,#7F77DD 50%,#1D9E75 100%);padding:18px 20px 14px;color:#fff}
+.header h1{font-size:20px;font-weight:700;letter-spacing:-.3px}
+.header .sub{font-size:12px;opacity:.75;margin-top:2px}
+.name-area{margin-top:8px;display:flex;align-items:center;gap:8px}
+.name-pill{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:4px 14px;font-size:13px;font-weight:500;cursor:pointer;transition:.15s;color:#fff}
+.name-pill:hover{background:rgba(255,255,255,.3)}
+.name-input-row{display:flex;gap:6px;align-items:center}
+.name-input-row input{font-size:13px;padding:4px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;width:160px}
+.name-input-row input::placeholder{color:rgba(255,255,255,.6)}
+.name-input-row button{font-size:12px;padding:4px 12px;border-radius:20px;border:none;background:#fff;color:var(--primary);font-weight:600;cursor:pointer}
+/* Nav tabs */
+.nav{display:flex;background:var(--surface);border-bottom:1px solid var(--border);padding:0 16px;gap:4px;position:sticky;top:0;z-index:50}
+.nav-tab{padding:12px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;color:var(--text2);border-bottom:2px solid transparent;font-family:inherit;transition:.15s;display:flex;align-items:center;gap:6px}
+.nav-tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.nav-tab:hover:not(.active){color:var(--text);background:var(--primary-light);border-radius:var(--radius) var(--radius) 0 0}
+.badge-dot{width:7px;height:7px;border-radius:50%;background:var(--danger);display:inline-block}
+/* Main */
+.main{padding:18px 16px 40px;max-width:960px;margin:0 auto}
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
+/* Buttons */
+button{border:1px solid var(--border);border-radius:var(--radius);padding:6px 14px;font-size:13px;font-family:inherit;cursor:pointer;background:var(--surface);color:var(--text);transition:.15s}
+button:hover{background:var(--primary-light);border-color:var(--primary-mid);color:var(--primary)}
+button.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+button.primary:hover{background:#4a3dd4}
+button.success{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.success:hover{background:#188060}
+button.danger{color:var(--danger);border-color:#F7C1C1}
+button.danger:hover{background:var(--danger-light)}
+button.sm{font-size:11px;padding:2px 8px;border-radius:6px}
+button.ghost{border:none;background:none;padding:4px 8px;color:var(--text2)}
+button.ghost:hover{background:var(--primary-light);color:var(--primary)}
+/* Forms */
+input,select,textarea{border:1.5px solid var(--border);border-radius:var(--radius);padding:8px 12px;font-size:13px;font-family:inherit;width:100%;background:var(--surface);color:var(--text);transition:.15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(91,78,232,.12)}
+textarea{resize:vertical}
+label.lbl{font-size:12px;color:var(--text2);display:block;margin-bottom:5px;font-weight:500}
+/* Layout helpers */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.span2{grid-column:1/-1}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+/* Pills & badges */
+.pill{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+/* Stats */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
+.stat{border-radius:var(--radius-lg);padding:16px;position:relative;overflow:hidden}
+.stat .val{font-size:28px;font-weight:700;margin-top:4px}
+.stat .lbl{font-size:11px;font-weight:600;opacity:.8}
+/* Section titles */
+.section-title{font-size:12px;font-weight:700;color:var(--primary);margin:16px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--primary-light);text-transform:uppercase;letter-spacing:.5px}
+/* Calendar */
+.cal-header{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.cal-hcell{text-align:center;font-size:11px;font-weight:700;padding:7px 2px;border-radius:8px;color:var(--text2)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:14px}
+.cal-cell{min-height:88px;border:1.5px solid var(--border);border-radius:10px;padding:5px;cursor:pointer;background:var(--surface);transition:.15s;position:relative}
+.cal-cell:hover{border-color:var(--primary-mid);background:var(--primary-light);transform:translateY(-1px)}
+.cal-cell.today{background:var(--primary-light);border-color:var(--primary);border-width:2px}
+.cal-cell.weekend{background:#FAFAF8}
+.cal-cell.holiday{background:#FFF8F0;border-color:#F5D0A9}
+.cal-cell.empty{background:transparent;border:none;cursor:default}
+.cal-cell.empty:hover{transform:none;background:transparent;border:none}
+.cal-date{font-size:12px;font-weight:700;margin-bottom:3px;color:var(--text)}
+.cal-cell.today .cal-date{color:var(--primary)}
+.cal-cell.holiday .cal-date{color:var(--warn)}
+.day-pill{font-size:9px;padding:2px 5px;border-radius:4px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:14px;font-weight:600}
+.holiday-label{font-size:9px;color:var(--warn);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(26,26,46,.45);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.modal-bg.show{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius-lg);padding:22px;width:min(540px,95vw);max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(91,78,232,.2)}
+/* Tasks */
+.task-item{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:8px;margin-bottom:4px;border:1.5px solid var(--border);background:#FAFAF8;transition:.15s}
+.task-item:hover{border-color:var(--primary-mid)}
+.task-item.done-item{background:var(--accent-light);border-color:#9FE1CB}
+.task-item.done-item .task-text{text-decoration:line-through;color:var(--text3)}
+.task-item.rollover{background:#FFF8F0;border-color:#F5D0A9;border-style:dashed}
+.task-text{flex:1;font-size:13px;word-break:break-word;padding-top:1px}
+.sub-task-item{display:flex;align-items:flex-start;gap:6px;padding:5px 8px;border-radius:6px;margin-bottom:3px;margin-left:24px;border:1px solid var(--border);background:var(--surface)}
+.sub-task-item.done-item{background:var(--accent-light);border-color:#9FE1CB}
+.sub-task-item.done-item .task-text{text-decoration:line-through;color:var(--text3)}
+.add-sub-row{margin-left:24px;display:flex;gap:6px;margin-bottom:4px;margin-top:4px}
+/* Alert rows */
+.alert-row{display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:var(--radius);border:1px solid var(--border);margin-bottom:8px;flex-wrap:wrap;background:var(--surface);transition:.15s}
+.alert-row:hover{box-shadow:var(--shadow)}
+/* Note sections */
+.note-section{margin-bottom:12px}
+.note-section-label{font-size:12px;font-weight:700;color:var(--primary);margin-bottom:5px;display:flex;align-items:center;gap:6px}
+/* Export buttons */
+.export-area{display:flex;gap:8px;align-items:center}
+/* Toast */
+#toast-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;padding:10px 22px;border-radius:30px;font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(91,78,232,.35);z-index:999;display:none;white-space:nowrap}
+/* Rollover banner */
+.rollover-banner{background:var(--amber-light);border:1px solid #FAC775;border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;font-size:13px;color:var(--amber);display:flex;align-items:center;gap:8px;font-weight:500}
+/* Camp card */
+.camp-card-dates{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:10px}
+.date-chip{background:var(--bg);border-radius:8px;padding:8px 10px;border:1px solid var(--border)}
+.date-chip .lbl{font-size:10px;color:var(--text2);margin-bottom:3px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+.date-chip .val{font-weight:600;font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="flex-between">
+    <div>
+      <h1>OOH Sales Planner</h1>
+      <div class="sub">Plan B Media</div>
+    </div>
+    <div class="export-area">
+      <button id="btn-export-csv" onclick="exportCSV()" class="ghost" style="color:#fff;border-color:rgba(255,255,255,.3);display:none;font-size:12px">CSV</button>
+      <button id="btn-export-xlsx" onclick="exportXLSX()" style="background:#fff;color:var(--primary);border:none;font-weight:600;display:none;font-size:12px">Excel</button>
+    </div>
+  </div>
+  <div class="name-area"><div id="sales-name-area"></div></div>
+</div>
+
+<div class="nav">
+  <button class="nav-tab active" onclick="switchTab('workplan',this)">Work Plan</button>
+  <button class="nav-tab" onclick="switchTab('dashboard',this)">Dashboard</button>
+  <button class="nav-tab" onclick="switchTab('campaigns',this)">แคมเปญ</button>
+  <button class="nav-tab" id="tab-alerts" onclick="switchTab('alerts',this)">แจ้งเตือน</button>
+</div>
+
+<div class="main">
+  <div id="page-workplan"></div>
+  <div id="page-dashboard" style="display:none"></div>
+  <div id="page-campaigns" style="display:none"></div>
+  <div id="page-alerts" style="display:none"></div>
+</div>
+
+<div id="day-modal-bg" class="modal-bg" onclick="closeDayModal(event)"></div>
+<div id="toast-bar"></div>
+
+<script>
+const SK="planb_v5_camps",WK="planb_v5_wp",OK="planb_v5_ovr",NK="planb_v5_name";
+const MEDIA_TYPES=["Billboard","Static","Digital","Transit","Other"];
+const STATUS_OPT=["Pending","Done","N/A"];
+const MONTHS_TH=["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+const DAYS_TH=["อา","จ","อ","พ","พฤ","ศ","ส"];
+const NOTE_SECTIONS=[{key:"meeting",label:"📋 สรุปประชุม"},{key:"followup",label:"📞 Follow-up"},{key:"remark",label:"💡 ข้อสังเกต"}];
+const ALERT_RULES=[
+  {key:"artwork",label:"ส่งไฟล์",ref:"start",color:"#D85A30",bg:"#FAECE7",tc:"#993C1D"},
+  {key:"renewal",label:"ต่อสัญญา",days:60,ref:"end",color:"#185FA5",bg:"#E6F1FB",tc:"#0C447C"},
+  {key:"campaign_start",label:"ขึ้นสื่อ",days:0,ref:"start",color:"#534AB7",bg:"#EEEDFE",tc:"#3C3489"},
+  {key:"campaign_end",label:"หมดอายุ",days:0,ref:"end",color:"#5F5E5A",bg:"#F1EFE8",tc:"#444441"},
+];
+const PLANB_HOLIDAYS={
+  "2026-01-01":"วันขึ้นปีใหม่","2026-03-03":"วันมาฆบูชา",
+  "2026-04-13":"วันสงกรานต์","2026-04-14":"วันสงกรานต์","2026-04-15":"วันสงกรานต์",
+  "2026-05-01":"วันแรงงาน","2026-06-03":"วันเฉลิมพระชนมพรรษา ร.10",
+  "2026-07-28":"วันเฉลิมพระชนมพรรษา ร.10","2026-07-29":"วันอาสาฬหบูชา",
+  "2026-08-12":"วันแม่แห่งชาติ","2026-10-13":"วันนวมินทรมหาราช",
+  "2026-10-23":"วันปิยมหาราช","2026-12-07":"ชดเชยวันพ่อ",
+  "2026-12-10":"วันรัฐธรรมนูญ","2026-12-30":"วันสิ้นปี","2026-12-31":"วันสิ้นปี",
+};
+
+let campaigns=JSON.parse(localStorage.getItem(SK)||"[]");
+let wpData=JSON.parse(localStorage.getItem(WK)||"{}");
+let overrides=JSON.parse(localStorage.getItem(OK)||"{}");
+let salesName=localStorage.getItem(NK)||"";
+let wpMonth=new Date().getMonth(),wpYear=new Date().getFullYear();
+let alertFilter="all",editId=null,showDone=false;
+let rolledOverDates=[];
+
+// ── Helpers ───────────────────────────────────────
+function setStatus(msg,timeout=0){const t=document.getElementById("toast-bar");t.textContent=msg;t.style.display=msg?"block":"none";if(timeout)setTimeout(()=>t.style.display="none",timeout);}
+function showToast(msg){const t=document.getElementById("toast-bar");t.textContent=msg;t.style.display="block";setTimeout(()=>t.style.display="none",2000);}
+function updateExportBtns(){const s=campaigns.length?"":"none";document.getElementById("btn-export-csv").style.display=s;document.getElementById("btn-export-xlsx").style.display=s;}
+function save(){
+  localStorage.setItem(SK,JSON.stringify(campaigns));localStorage.setItem(WK,JSON.stringify(wpData));
+  localStorage.setItem(OK,JSON.stringify(overrides));localStorage.setItem(NK,salesName);
+  if(window._saveToFirebase)window._saveToFirebase();
+  showToast("☁️ บันทึกแล้ว");updateExportBtns();
+}
+function getHoliday(ds){return PLANB_HOLIDAYS[ds]||null;}
+function isWorkday(ds){const d=new Date(ds);const w=d.getDay();return w!==0&&w!==6&&!PLANB_HOLIDAYS[ds];}
+function subtractWorkdays(ds,n){if(!ds||!n)return ds;let d=new Date(ds);let c=0;while(c<n){d.setDate(d.getDate()-1);if(isWorkday(d.toISOString().split("T")[0]))c++;}return d.toISOString().split("T")[0];}
+function daysUntil(ds){if(!ds)return null;const t=new Date();t.setHours(0,0,0,0);const d=new Date(ds);d.setHours(0,0,0,0);return Math.round((d-t)/86400000);}
+function addDays(ds,n){if(!ds)return "";const d=new Date(ds);d.setDate(d.getDate()+n);return d.toISOString().split("T")[0];}
+function fmtDate(ds){if(!ds)return "—";return new Date(ds).toLocaleDateString("th-TH",{day:"numeric",month:"short",year:"2-digit"});}
+function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
+function yesterday(){return addDays(today(),-1);}
+function dayKey(y,m,d){return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;}
+function defaultLead(mt){return mt==="Digital"?7:14;}
+function urgTag(days){
+  if(days===null)return "";
+  if(days<0)return `<span class="pill" style="background:#FCEBEB;color:#A32D2D">เลย ${Math.abs(days)} วัน</span>`;
+  if(days===0)return `<span class="pill" style="background:#FAECE7;color:#993C1D">วันนี้</span>`;
+  if(days<=7)return `<span class="pill" style="background:#FAECE7;color:#993C1D">อีก ${days} วัน</span>`;
+  if(days<=14)return `<span class="pill" style="background:#FAEEDA;color:#854F0B">อีก ${days} วัน</span>`;
+  return `<span class="pill" style="background:#EAF3DE;color:#3B6D11">อีก ${days} วัน</span>`;
+}
+function getAlertDate(c,rule){
+  const ok=c.id+"_"+rule.key;if(overrides[ok])return overrides[ok];
+  if(rule.key==="artwork")return subtractWorkdays(c.start_date,parseInt(c.artwork_lead||defaultLead(c.media_type)));
+  if(rule.ref==="start")return rule.days===0?c.start_date:addDays(c.start_date,-rule.days);
+  if(rule.ref==="end")return rule.days===0?c.end_date:addDays(c.end_date,-rule.days);
+  return "";
+}
+function getAlerts(){
+  const arr=[];
+  campaigns.forEach(c=>{ALERT_RULES.forEach(rule=>{
+    const ad=getAlertDate(c,rule);if(!ad)return;
+    const st=(c.statuses||{})[rule.key]||"Pending";
+    if(st==="Done"||st==="N/A")return;
+    arr.push({campId:c.id,client:c.client,media_type:c.media_type,rule,alertDate:ad,days:daysUntil(ad)});
+  });});
+  return arr.sort((a,b)=>(a.days??999)-(b.days??999));
+}
+function getAllAlertsIncDone(){
+  const arr=[];
+  campaigns.forEach(c=>{ALERT_RULES.forEach(rule=>{
+    const ad=getAlertDate(c,rule);if(!ad)return;
+    arr.push({campId:c.id,client:c.client,media_type:c.media_type,rule,alertDate:ad,days:daysUntil(ad)});
+  });});
+  return arr.sort((a,b)=>(a.days??999)-(b.days??999));
+}
+function updateStatus(campId,key,val){campaigns=campaigns.map(c=>c.id===campId?{...c,statuses:{...(c.statuses||{}),[key]:val}}:c);save();renderAll();}
+function saveOverride(campId,rk,val){const k=campId+"_"+rk;if(val)overrides[k]=val;else delete overrides[k];save();renderAll();}
+
+// ── Auto Rollover ─────────────────────────────────
+function rolloverPendingTasks(){
+  const td=today();const yd=yesterday();
+  rolledOverDates=[];
+  let changed=false;
+  // เช็คทุกวันที่ผ่านมา (ไม่ใช่วันนี้) ที่มี task ค้าง
+  Object.keys(wpData).forEach(ds=>{
+    if(ds>=td)return; // ข้ามวันนี้และอนาคต
+    const dd=wpData[ds];
+    if(!dd||!dd.tasks)return;
+    const pending=dd.tasks.filter(t=>!t.done&&!t.rolledFrom);
+    if(!pending.length)return;
+    // เลื่อน task ไปวันนี้
+    if(!wpData[td])wpData[td]={tasks:[],notes:{}};
+    pending.forEach(t=>{
+      // ตรวจว่า task นี้ยังไม่ถูก rollover ไปแล้ว
+      const alreadyRolled=(wpData[td].tasks||[]).some(rt=>rt.rolledFrom===t.id&&rt.rolledFromDate===ds);
+      if(!alreadyRolled){
+        wpData[td].tasks.push({...t,id:Date.now().toString()+Math.random(),rolledFrom:t.id,rolledFromDate:ds,done:false});
+        changed=true;
+      }
+    });
+    // mark ต้นฉบับว่า rolled
+    wpData[ds].tasks=dd.tasks.map(t=>!t.done&&!t.rolledFrom?{...t,rolled:true}:t);
+    if(pending.length)rolledOverDates.push({date:ds,count:pending.length});
+  });
+  if(changed){localStorage.setItem(WK,JSON.stringify(wpData));if(window._saveToFirebase)window._saveToFirebase();}
+}
+
+// ── Tabs ──────────────────────────────────────────
+function switchTab(name,el){
+  document.querySelectorAll(".nav-tab").forEach(t=>t.classList.remove("active"));el.classList.add("active");
+  ["workplan","dashboard","campaigns","alerts"].forEach(p=>{document.getElementById("page-"+p).style.display=p===name?"block":"none";});
+  renderTab(name);
+}
+function renderAll(){["workplan","dashboard","campaigns","alerts"].forEach(renderTab);}
+function renderTab(n){if(n==="workplan")renderWorkplan();else if(n==="dashboard")renderDashboard();else if(n==="campaigns")renderCampaigns();else if(n==="alerts")renderAlerts();}
+function switchTabByName(name){const names=["workplan","dashboard","campaigns","alerts"];switchTab(name,document.querySelectorAll(".nav-tab")[names.indexOf(name)]);}
+
+// ── Name ──────────────────────────────────────────
+function saveName(){const i=document.getElementById("sales-name-input");if(!i)return;salesName=i.value;localStorage.setItem(NK,salesName);renderNameDisplay();showToast("บันทึกชื่อแล้ว");}
+function renderNameDisplay(){
+  const el=document.getElementById("sales-name-area");if(!el)return;
+  if(salesName){el.innerHTML=`<span class="name-pill" onclick="editName()">👤 ${salesName} ✏️</span>`;}
+  else{el.innerHTML=`<div class="name-input-row"><input id="sales-name-input" placeholder="ใส่ชื่อ Sales..." onkeydown="if(event.key==='Enter')saveName()"><button onclick="saveName()">บันทึก</button></div>`;}
+}
+function editName(){
+  const el=document.getElementById("sales-name-area");if(!el)return;
+  el.innerHTML=`<div class="name-input-row"><input id="sales-name-input" value="${salesName}" onkeydown="if(event.key==='Enter')saveName()"><button onclick="saveName()">บันทึก</button></div>`;
+  setTimeout(()=>document.getElementById("sales-name-input")?.focus(),30);
+}
+
+// ── Work Plan ─────────────────────────────────────
+function getDayAlerts(ds){
+  const arr=[];campaigns.forEach(c=>{ALERT_RULES.forEach(rule=>{if(getAlertDate(c,rule)===ds)arr.push({client:c.client,rule});});});return arr;
+}
+function renderWorkplan(){
+  const el=document.getElementById("page-workplan");
+  const td=new Date();td.setHours(0,0,0,0);
+  const dim=new Date(wpYear,wpMonth+1,0).getDate();
+  const first=new Date(wpYear,wpMonth,1).getDay();
+  const prefix=`${wpYear}-${String(wpMonth+1).padStart(2,"0")}`;
+  const noteCnt=Object.keys(wpData).filter(k=>k.startsWith(prefix)&&(wpData[k].notes?.meeting||wpData[k].notes?.followup||wpData[k].notes?.remark)).length;
+  const tot=Object.values(wpData).reduce((s,d)=>s+(d.tasks||[]).length,0);
+  const done=Object.values(wpData).reduce((s,d)=>s+(d.tasks||[]).filter(t=>t.done).length,0);
+  const hdr=DAYS_TH.map((d,i)=>`<div class="cal-hcell" style="background:${i===0||i===6?"#f5f5f3":"var(--primary-light)"};color:${i===0||i===6?"var(--text3)":"var(--primary)"}">${d}</div>`).join("");
+  let cells="";
+  for(let i=0;i<first;i++)cells+=`<div class="cal-cell empty"></div>`;
+  for(let d=1;d<=dim;d++){
+    const ds=dayKey(wpYear,wpMonth,d);
+    const dt=new Date(wpYear,wpMonth,d);dt.setHours(0,0,0,0);
+    const isToday=dt.getTime()===td.getTime();
+    const dow=dt.getDay(),isWE=dow===0||dow===6;
+    const hol=getHoliday(ds);
+    const dd=wpData[ds]||{tasks:[],notes:{}};
+    const tasks=dd.tasks||[];const dc=tasks.filter(t=>t.done).length;
+    const rolledCnt=tasks.filter(t=>t.rolledFrom&&!t.done).length;
+    const dayAlerts=getDayAlerts(ds);
+    const hasNote=dd.notes?.meeting||dd.notes?.followup||dd.notes?.remark;
+    let cls="cal-cell"+(isToday?" today":hol?" holiday":isWE?" weekend":"");
+    let inner=`<div class="cal-date">${d}</div>`;
+    if(hol)inner+=`<div class="holiday-label">🎌 ${hol}</div>`;
+    inner+=dayAlerts.slice(0,2).map(a=>`<div class="day-pill" style="background:${a.rule.bg};color:${a.rule.tc}">${a.rule.label} ${a.client.split(" ")[0]}</div>`).join("");
+    if(dayAlerts.length>2)inner+=`<div style="font-size:9px;color:var(--text3)">+${dayAlerts.length-2}</div>`;
+    if(tasks.length>0)inner+=`<div style="font-size:9px;color:${dc===tasks.length?"var(--accent)":"var(--text2)"};font-weight:600">✓ ${dc}/${tasks.length}</div>`;
+    if(rolledCnt>0)inner+=`<div style="font-size:9px;color:var(--amber);font-weight:600">↩ ${rolledCnt} เลื่อน</div>`;
+    if(hasNote)inner+=`<div style="font-size:9px;color:var(--primary)">📋 โน้ต</div>`;
+    cells+=`<div class="${cls}" onclick="openDayModal('${ds}')">${inner}</div>`;
+  }
+  const legend=ALERT_RULES.map(r=>`<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:${r.tc};margin-right:10px"><span style="width:8px;height:8px;border-radius:3px;background:${r.bg};border:1px solid ${r.color};display:inline-block"></span>${r.label}</span>`).join("");
+  el.innerHTML=`
+    <div class="flex-between" style="margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="ghost" onclick="wpPrev()">‹</button>
+        <div style="font-size:16px;font-weight:700;min-width:150px;text-align:center;color:var(--primary)">${MONTHS_TH[wpMonth]} ${wpYear+543}</div>
+        <button class="ghost" onclick="wpNext()">›</button>
+      </div>
+      <div style="font-size:12px;color:var(--text2)">งานเดือนนี้: <b style="color:var(--accent)">${done}/${tot}</b> &nbsp;|&nbsp; โน้ต: <b style="color:var(--primary)">${noteCnt}</b></div>
+    </div>
+    <div class="cal-header">${hdr}</div>
+    <div class="cal-grid">${cells}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">${legend}
+      <span style="font-size:11px;color:var(--warn);margin-left:8px">🎌 วันหยุด Plan B</span>
+      <span style="font-size:11px;color:var(--amber);margin-left:8px">↩ task เลื่อนมา</span>
+    </div>`;
+}
+function wpPrev(){if(wpMonth===0){wpMonth=11;wpYear--;}else wpMonth--;renderWorkplan();}
+function wpNext(){if(wpMonth===11){wpMonth=0;wpYear++;}else wpMonth++;renderWorkplan();}
+
+// ── Day Modal ─────────────────────────────────────
+function openDayModal(ds){
+  const dd=wpData[ds]||{tasks:[],notes:{}};
+  const [y,m,d]=ds.split("-").map(Number);
+  const dt=new Date(y,m-1,d);
+  const hol=getHoliday(ds);
+  const dayAlerts=getDayAlerts(ds);
+  const alertsHTML=dayAlerts.length?`<div style="margin-bottom:14px">
+    <div class="section-title">📌 Deadline วันนี้</div>
+    ${dayAlerts.map(a=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${a.rule.bg};border-radius:8px;margin-bottom:4px;border:1px solid ${a.rule.color}40">
+      <span style="font-size:11px;color:${a.rule.tc};font-weight:700">${a.rule.label}</span>
+      <span style="font-size:13px;color:var(--text)">${a.client}</span>
+    </div>`).join("")}
+  </div>`:"";
+  const bg=document.getElementById("day-modal-bg");
+  bg.innerHTML=`<div class="modal" onclick="event.stopPropagation()">
+    <div class="flex-between" style="margin-bottom:16px">
+      <div>
+        <div style="font-weight:700;font-size:16px">${DAYS_TH[dt.getDay()]} ${d} ${MONTHS_TH[m-1]} ${y+543}</div>
+        ${hol?`<div style="font-size:12px;color:var(--warn);margin-top:2px">🎌 ${hol}</div>`:""}
+      </div>
+      <button class="primary" onclick="saveDayModal('${ds}')">บันทึก & ปิด</button>
+    </div>
+    ${alertsHTML}
+    <div style="margin-bottom:16px">
+      <div class="section-title">✅ Checklist</div>
+      <div id="task-list-${ds}">${renderTaskList(ds)}</div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <input id="task-input-${ds}" placeholder="เพิ่ม task หลัก..." style="flex:1;font-size:13px" onkeydown="if(event.key==='Enter')addTask('${ds}')">
+        <button onclick="addTask('${ds}')">+ Task</button>
+      </div>
+    </div>
+    <div>
+      <div class="section-title">📝 โน้ตประจำวัน</div>
+      ${NOTE_SECTIONS.map(s=>`<div class="note-section">
+        <div class="note-section-label">${s.label}</div>
+        <textarea id="note-${s.key}-${ds}" style="min-height:65px;font-size:13px" placeholder="พิมพ์ที่นี่...">${(dd.notes||{})[s.key]||""}</textarea>
+      </div>`).join("")}
+    </div>
+  </div>`;
+  bg.classList.add("show");
+}
+
+function renderTaskList(ds){
+  const tasks=(wpData[ds]||{}).tasks||[];
+  return tasks.map(t=>{
+    const isRolled=!!t.rolledFrom;
+    const subs=(t.subs||[]).map(s=>`
+      <div class="sub-task-item ${s.done?"done-item":""}">
+        <input type="checkbox" ${s.done?"checked":""} onchange="toggleSub('${ds}','${t.id}','${s.id}')" style="width:14px;height:14px;cursor:pointer;margin-top:2px;accent-color:var(--accent)">
+        ${s.editing?`<input id="edit-sub-${s.id}" value="${s.text}" style="flex:1;font-size:12px" onkeydown="if(event.key==='Enter')saveEditSub('${ds}','${t.id}','${s.id}')" onblur="saveEditSub('${ds}','${t.id}','${s.id}')">` 
+        :`<span class="task-text">${s.text}</span>`}
+        <button class="sm ghost" onclick="startEditSub('${ds}','${t.id}','${s.id}')" style="font-size:10px">✏️</button>
+        <button class="sm danger" onclick="deleteSub('${ds}','${t.id}','${s.id}')">✕</button>
+      </div>`).join("");
+    return `<div class="task-item ${t.done?"done-item":""} ${isRolled&&!t.done?"rollover":""}">
+      <input type="checkbox" ${t.done?"checked":""} onchange="toggleTask('${ds}','${t.id}')" style="width:15px;height:15px;cursor:pointer;margin-top:2px;accent-color:var(--accent)">
+      <div style="flex:1">
+        ${t.editing?`<input id="edit-task-${t.id}" value="${t.text}" style="width:100%;font-size:13px;margin-bottom:4px" onkeydown="if(event.key==='Enter')saveEditTask('${ds}','${t.id}')" onblur="saveEditTask('${ds}','${t.id}')">` 
+        :`<span class="task-text">${isRolled&&!t.done?`<span style="font-size:10px;background:var(--amber-light);color:var(--amber);border-radius:4px;padding:1px 5px;margin-right:4px;font-weight:600">↩ เลื่อนมา</span>`:""}${t.text}</span>`}
+        <div>${subs}</div>
+        <div class="add-sub-row">
+          <input id="sub-input-${t.id}" placeholder="เพิ่ม sub-task..." style="flex:1;font-size:12px" onkeydown="if(event.key==='Enter')addSub('${ds}','${t.id}')">
+          <button class="sm" onclick="addSub('${ds}','${t.id}')">+ Sub</button>
+        </div>
+      </div>
+      <button class="sm ghost" onclick="startEditTask('${ds}','${t.id}')" style="font-size:10px">✏️</button>
+      <button class="sm danger" onclick="deleteTask('${ds}','${t.id}')">✕</button>
+    </div>`;
+  }).join("");
+}
+function refreshTaskList(ds){const el=document.getElementById("task-list-"+ds);if(el)el.innerHTML=renderTaskList(ds);}
+function ensureDay(ds){if(!wpData[ds])wpData[ds]={tasks:[],notes:{}};}
+function addTask(ds){const i=document.getElementById("task-input-"+ds);if(!i||!i.value.trim())return;ensureDay(ds);wpData[ds].tasks.push({id:Date.now().toString(),text:i.value.trim(),done:false,subs:[]});i.value="";save();refreshTaskList(ds);}
+function toggleTask(ds,tid){ensureDay(ds);wpData[ds].tasks=wpData[ds].tasks.map(t=>t.id===tid?{...t,done:!t.done}:t);save();refreshTaskList(ds);}
+function deleteTask(ds,tid){ensureDay(ds);wpData[ds].tasks=wpData[ds].tasks.filter(t=>t.id!==tid);save();refreshTaskList(ds);}
+function addSub(ds,tid){const i=document.getElementById("sub-input-"+tid);if(!i||!i.value.trim())return;ensureDay(ds);wpData[ds].tasks=wpData[ds].tasks.map(t=>t.id!==tid?t:{...t,subs:[...(t.subs||[]),{id:Date.now().toString(),text:i.value.trim(),done:false}]});i.value="";save();refreshTaskList(ds);}
+function toggleSub(ds,tid,sid){ensureDay(ds);wpData[ds].tasks=wpData[ds].tasks.map(t=>t.id!==tid?t:{...t,subs:(t.subs||[]).map(s=>s.id===sid?{...s,done:!s.done}:s)});save();refreshTaskList(ds);}
+function deleteSub(ds,tid,sid){ensureDay(ds);wpData[ds].tasks=wpData[ds].tasks.map(t=>t.id!==tid?t:{...t,subs:(t.subs||[]).filter(s=>s.id!==sid)});save();refreshTaskList(ds);}
+function startEditTask(ds,tid){ensureDay(ds);wpData[ds].tasks=wpData[ds].tasks.map(t=>t.id===tid?{...t,editing:true}:t);refreshTaskList(ds);setTimeout(()=>document.getElementById("edit-task-"+tid)?.focus(),30);}
+function saveEditTask(ds,tid){const i=document.getElementById("edit-task-"+tid);if(!i)return;const v=i.value.trim();if(!v)return;ensureDay(ds);wpData[ds].tasks=wpData[ds].tasks.map(t=>t.id===tid?{...t,text:v,editing:false}:t);save();refreshTaskList(ds);}
+function startEditSub(ds,tid,sid){ensureDay(ds);wpData[ds].tasks=wpData[ds].tasks.map(t=>t.id!==tid?t:{...t,subs:(t.subs||[]).map(s=>s.id===sid?{...s,editing:true}:s)});refreshTaskList(ds);setTimeout(()=>document.getElementById("edit-sub-"+sid)?.focus(),30);}
+function saveEditSub(ds,tid,sid){const i=document.getElementById("edit-sub-"+sid);if(!i)return;const v=i.value.trim();if(!v)return;ensureDay(ds);wpData[ds].tasks=wpData[ds].tasks.map(t=>t.id!==tid?t:{...t,subs:(t.subs||[]).map(s=>s.id===sid?{...s,text:v,editing:false}:s)});save();refreshTaskList(ds);}
+function saveDayModal(ds){
+  ensureDay(ds);NOTE_SECTIONS.forEach(s=>{const el=document.getElementById(`note-${s.key}-${ds}`);if(el){if(!wpData[ds].notes)wpData[ds].notes={};wpData[ds].notes[s.key]=el.value;}});
+  save();renderWorkplan();document.getElementById("day-modal-bg").classList.remove("show");
+}
+function closeDayModal(e){
+  if(e.target!==document.getElementById("day-modal-bg"))return;
+  document.querySelectorAll("[id^='note-']").forEach(el=>{const p=el.id.split("-");if(p.length<3)return;const key=p[1];const ds=p.slice(2).join("-");ensureDay(ds);if(!wpData[ds].notes)wpData[ds].notes={};wpData[ds].notes[key]=el.value;});
+  save();renderWorkplan();document.getElementById("day-modal-bg").classList.remove("show");
+}
+
+// ── Dashboard ─────────────────────────────────────
+function renderDashboard(){
+  const alerts=getAlerts();
+  const urgent=alerts.filter(a=>a.days!==null&&a.days<=7);
+  const upcoming=alerts.filter(a=>a.days!==null&&a.days>7&&a.days<=30);
+  const totalRolled=Object.values(wpData).reduce((s,d)=>{const td2=today();if(!wpData[td2])return s;return s+(wpData[td2].tasks||[]).filter(t=>t.rolledFrom&&!t.done).length;},0);
+  const rolloverBanner=rolledOverDates.length?`<div class="rollover-banner">
+    ↩ มี task ค้างจาก ${rolledOverDates.length} วันที่ผ่านมา ถูกเลื่อนมาวันนี้แล้ว (${rolledOverDates.reduce((s,r)=>s+r.count,0)} รายการ)
+    <button class="sm" onclick="switchTabByName('workplan')" style="margin-left:auto">ดูใน Work Plan</button>
+  </div>`:"";
+  document.getElementById("page-dashboard").innerHTML=`
+    ${rolloverBanner}
+    <div class="stat-grid">
+      <div class="stat" style="background:var(--blue-light)"><div class="lbl" style="color:var(--blue)">แคมเปญทั้งหมด</div><div class="val" style="color:var(--blue)">${campaigns.length}</div></div>
+      <div class="stat" style="background:var(--danger-light)"><div class="lbl" style="color:var(--danger)">เร่งด่วน ≤7 วัน</div><div class="val" style="color:var(--danger)">${urgent.length}</div></div>
+      <div class="stat" style="background:var(--amber-light)"><div class="lbl" style="color:var(--amber)">ใกล้ถึง 8–30 วัน</div><div class="val" style="color:var(--amber)">${upcoming.length}</div></div>
+      <div class="stat" style="background:var(--primary-light)"><div class="lbl" style="color:var(--primary)">งานค้างทั้งหมด</div><div class="val" style="color:var(--primary)">${alerts.length}</div></div>
+    </div>
+    ${urgent.length?`<div class="section-title">เร่งด่วน — ภายใน 7 วัน</div>${urgent.map(alertRowHTML).join("")}`:""}
+    ${upcoming.length?`<div class="section-title" style="margin-top:16px">ใกล้ถึง — 8–30 วัน</div>${upcoming.slice(0,5).map(alertRowHTML).join("")}`:""}
+    ${!campaigns.length?`<div style="text-align:center;padding:3rem;color:var(--text2)">ยังไม่มีแคมเปญ<br><br><button class="primary" onclick="switchTabByName('campaigns')">+ เพิ่มแคมเปญแรก</button></div>`:""}`;
+}
+
+// ── Alert Row ─────────────────────────────────────
+function alertRowHTML(a){
+  const curSt=(campaigns.find(c=>c.id===a.campId)?.statuses||{})[a.rule.key]||"Pending";
+  const ovrVal=overrides[a.campId+"_"+a.rule.key]||"";
+  return `<div class="alert-row" style="border-left:3px solid ${a.rule.color}">
+    <span class="pill" style="background:${a.rule.bg};color:${a.rule.tc}">${a.rule.label}</span>
+    <div style="flex:1;min-width:80px"><div style="font-size:13px;font-weight:600">${a.client}</div><div style="font-size:11px;color:var(--text2)">${a.media_type}</div></div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+      ${urgTag(a.days)}
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:11px;color:var(--text2)">${ovrVal?"✏️":""}${fmtDate(a.alertDate)}</span>
+        <input type="date" value="${ovrVal}" onchange="saveOverride('${a.campId}','${a.rule.key}',this.value)" style="font-size:11px;padding:2px 4px;width:auto;border:1px dashed var(--primary-mid);color:var(--primary)">
+        ${ovrVal?`<button class="sm ghost" onclick="saveOverride('${a.campId}','${a.rule.key}','')">↺</button>`:""}
+      </div>
+    </div>
+    <button onclick="sendAlertEmail('${a.campId}','${a.rule.key}')" style="font-size:11px;padding:3px 10px">✉ เมล์</button>
+    <select style="font-size:12px;padding:3px 6px;width:auto" onchange="updateStatus('${a.campId}','${a.rule.key}',this.value)">
+      ${STATUS_OPT.map(s=>`<option value="${s}" ${curSt===s?"selected":""}>${s}</option>`).join("")}
+    </select>
+  </div>`;
+}
+function sendAlertEmail(campId,rk){
+  const c=campaigns.find(x=>x.id===campId);if(!c)return;
+  const rule=ALERT_RULES.find(r=>r.key===rk);const ad=getAlertDate(c,rule);const days=daysUntil(ad);
+  const urg=days<0?`เลยกำหนด ${Math.abs(days)} วัน`:days===0?"วันนี้":`อีก ${days} วัน`;
+  const sub=encodeURIComponent(`[แจ้งเตือน OOH] ${rule.label} — ${c.client}`);
+  const body=encodeURIComponent(`แจ้งเตือน: ${rule.label}\nลูกค้า: ${c.client}\nประเภทสื่อ: ${c.media_type}\n${c.quotation?"เลขใบเสนอราคา: "+c.quotation+"\n":""}\nวันดำเนินการ: ${fmtDate(ad)} (${urg})\n${c.start_date?"Ads On: "+fmtDate(c.start_date):""}\n${c.end_date?"หมดอายุ: "+fmtDate(c.end_date):""}\n${c.budget?"งบ: "+Number(c.budget).toLocaleString("th-TH")+" บาท":""}\n${c.notes?"หมายเหตุ: "+c.notes:""}\n\n— OOH Sales Planner Plan B Media`);
+  window.location.href=`mailto:?subject=${sub}&body=${body}`;
+}
+
+// ── Campaigns ─────────────────────────────────────
+function renderCampaigns(){
+  const el=document.getElementById("page-campaigns");
+  const f=editId?campaigns.find(c=>c.id===editId)||{}:{};
+  el.innerHTML=`
+    <div class="flex-between" style="margin-bottom:14px">
+      <div style="font-size:15px;font-weight:700">แคมเปญ (${campaigns.length})</div>
+      <button class="primary" onclick="toggleForm()">+ เพิ่มแคมเปญ</button>
+    </div>
+    <div id="camp-form" style="display:${editId!==null?"block":"none"}">
+      <div class="card" style="border:2px solid var(--primary-light);margin-bottom:16px">
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px;color:var(--primary)">${editId?"✏️ แก้ไขแคมเปญ":"✨ เพิ่มแคมเปญใหม่"}</div>
+        <div class="section-title">ข้อมูลทั่วไป</div>
+        <div class="grid2">
+          <div class="span2"><label class="lbl">ชื่อลูกค้า *</label><input id="f-client" value="${f.client||""}" placeholder="เช่น บริษัท ABC จำกัด"></div>
+          <div><label class="lbl">ประเภทสื่อ</label><select id="f-media" onchange="onMediaChange()">${MEDIA_TYPES.map(t=>`<option ${(f.media_type||"Billboard")===t?"selected":""}>${t}</option>`).join("")}</select></div>
+          <div><label class="lbl">งบประมาณ (บาท)</label><input id="f-budget" type="number" value="${f.budget||""}" placeholder="0"></div>
+          <div class="span2"><label class="lbl">เลขใบเสนอราคา</label><input id="f-quotation" value="${f.quotation||""}" placeholder="เช่น QT-2568-001"></div>
+        </div>
+        <div class="section-title">วันที่</div>
+        <div class="grid2">
+          <div><label class="lbl">วันขึ้นสื่อ (Ads On)</label><input id="f-start" type="date" value="${f.start_date||""}" oninput="updateLeadPreview()"></div>
+          <div><label class="lbl">วันหมดอายุ</label><input id="f-end" type="date" value="${f.end_date||""}"></div>
+        </div>
+        <div class="section-title">Timeline ส่งไฟล์</div>
+        <label class="lbl">ส่งไฟล์ก่อน Ads On กี่วันทำการ?</label>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <input id="f-lead" type="number" min="1" max="60" value="${f.artwork_lead||defaultLead(f.media_type||'Billboard')}" style="width:80px" oninput="updateLeadPreview()">
+          <span style="font-size:12px;color:var(--text2)">วันทำการ (ข้ามวันหยุด Plan B)</span>
+          <span class="pill" style="background:var(--primary-light);color:var(--primary);font-size:11px">Digital=7 / อื่นๆ=14 วัน</span>
+        </div>
+        <div id="lead-preview" style="font-size:12px;color:var(--primary);margin-top:6px;font-weight:600"></div>
+        <div class="section-title">อื่นๆ</div>
+        <label class="lbl">หมายเหตุ</label><input id="f-notes" value="${f.notes||""}" placeholder="รายละเอียดเพิ่มเติม...">
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+          <button onclick="cancelForm()">ยกเลิก</button>
+          <button class="primary" onclick="saveCamp()">บันทึก</button>
+        </div>
+      </div>
+    </div>
+    <div>${campaigns.map(campCardHTML).join("")}</div>
+    ${!campaigns.length?`<div style="text-align:center;padding:3rem;color:var(--text2)">ยังไม่มีแคมเปญ กดปุ่ม + เพื่อเริ่มต้น</div>`:""}`;
+  ["f-start","f-lead"].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener("input",updateLeadPreview);});
+  updateLeadPreview();
+}
+function campCardHTML(c){
+  const art=getAlertDate(c,ALERT_RULES[0]);
+  const ren=c.end_date?getAlertDate(c,ALERT_RULES[1]):"";
+  const dates=[["Ads On",c.start_date],["หมดอายุ",c.end_date],[`ส่งไฟล์ (${c.artwork_lead||defaultLead(c.media_type)} วัน)`,art],ren&&["ต่อสัญญา",ren]].filter(Boolean).filter(x=>x[1]);
+  return `<div class="card">
+    <div class="flex-between" style="margin-bottom:10px">
+      <div>
+        <div style="font-weight:700;font-size:15px">${c.client}</div>
+        <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="pill" style="background:var(--primary-light);color:var(--primary)">${c.media_type}</span>
+          ${c.quotation?`<span class="pill" style="background:#f0f0f8;color:var(--gray)">📄 ${c.quotation}</span>`:""}
+          ${c.budget?`<span class="pill" style="background:var(--accent-light);color:var(--accent)">${Number(c.budget).toLocaleString("th-TH")} บาท</span>`:""}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="editCamp('${c.id}')">แก้ไข</button>
+        <button class="danger" onclick="delCamp('${c.id}')">ลบ</button>
+      </div>
+    </div>
+    <div class="camp-card-dates">
+      ${dates.map(([lbl,ds])=>`<div class="date-chip">
+        <div class="lbl">${lbl}</div>
+        <div class="val">${fmtDate(ds)}</div>
+        ${urgTag(daysUntil(ds))}
+      </div>`).join("")}
+    </div>
+    ${c.notes?`<div style="font-size:12px;color:var(--text2);margin-top:10px;border-top:1px solid var(--border);padding-top:8px">${c.notes}</div>`:""}
+  </div>`;
+}
+function onMediaChange(){const m=document.getElementById("f-media");const l=document.getElementById("f-lead");if(!m||!l)return;l.value=defaultLead(m.value);updateLeadPreview();}
+function updateLeadPreview(){
+  const s=document.getElementById("f-start");const l=document.getElementById("f-lead");const p=document.getElementById("lead-preview");
+  if(!s||!l||!p)return;const ds=s.value,lt=parseInt(l.value||"14");
+  if(!ds||!lt){p.textContent="";return;}
+  const deadline=subtractWorkdays(ds,lt);p.innerHTML=`📅 deadline ส่งไฟล์: <b>${fmtDate(deadline)}</b>`;
+}
+function toggleForm(){editId=null;renderCampaigns();document.getElementById("camp-form").style.display="block";}
+function cancelForm(){editId=null;renderCampaigns();}
+function editCamp(id){editId=id;renderCampaigns();}
+function delCamp(id){if(confirm("ลบแคมเปญนี้?"))campaigns=campaigns.filter(c=>c.id!==id);save();renderAll();}
+function saveCamp(){
+  const client=document.getElementById("f-client").value.trim();if(!client){alert("กรุณากรอกชื่อลูกค้า");return;}
+  const obj={id:editId||Date.now().toString(),client,media_type:document.getElementById("f-media").value,budget:document.getElementById("f-budget").value,quotation:document.getElementById("f-quotation").value,start_date:document.getElementById("f-start").value,end_date:document.getElementById("f-end").value,artwork_lead:document.getElementById("f-lead").value||"14",notes:document.getElementById("f-notes").value,statuses:editId?(campaigns.find(c=>c.id===editId)?.statuses||{}):{},};
+  campaigns=editId?campaigns.map(c=>c.id===editId?obj:c):[...campaigns,obj];
+  editId=null;save();renderAll();
+}
+
+// ── Alerts ────────────────────────────────────────
+function renderAlerts(){
+  const alerts=getAlerts();
+  const urgent=alerts.filter(a=>a.days!==null&&a.days<=7);
+  const tab=document.getElementById("tab-alerts");
+  tab.innerHTML=(urgent.length?`<span class="badge-dot"></span>`:"")+`แจ้งเตือน`;
+  const src=showDone?getAllAlertsIncDone():alerts;
+  const filtered=alertFilter==="all"?src:alertFilter==="urgent"?src.filter(a=>a.days!==null&&a.days<=7):alertFilter==="upcoming"?src.filter(a=>a.days!==null&&a.days>7&&a.days<=30):src.filter(a=>a.rule.key===alertFilter);
+  const btns=[["all","ทั้งหมด"],["urgent","เร่งด่วน"],["upcoming","ใกล้ถึง"],["artwork","ส่งไฟล์"],["renewal","ต่อสัญญา"]];
+  document.getElementById("page-alerts").innerHTML=`
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+      ${btns.map(([k,l])=>`<button onclick="setAlertFilter('${k}')" style="${alertFilter===k?"background:var(--primary);color:#fff;border-color:var(--primary);":""}font-size:12px;padding:4px 12px">${l}</button>`).join("")}
+      <button onclick="toggleShowDone()" style="margin-left:auto;font-size:12px;padding:4px 12px;${showDone?"background:var(--accent);color:#fff;border-color:var(--accent);":""}">${showDone?"✅ ซ่อน Done":"👁 แสดง Done"}</button>
+    </div>
+    ${!filtered.length?`<div style="text-align:center;padding:3rem;color:var(--text2)">ไม่มีรายการแจ้งเตือน</div>`:""}
+    ${filtered.map(alertRowHTML).join("")}
+    ${filtered.length?`<div style="margin-top:14px;padding:10px 14px;background:var(--primary-light);border-radius:var(--radius);font-size:12px;color:var(--primary)">💡 คลิก date เพื่อแก้ deadline &nbsp;|&nbsp; ↺ รีเซ็ต &nbsp;|&nbsp; ✉ ส่งเมล์</div>`:""}`;
+}
+function setAlertFilter(f){alertFilter=f;renderAlerts();}
+function toggleShowDone(){showDone=!showDone;renderAlerts();}
+
+// ── Export ────────────────────────────────────────
+function exportCSV(){
+  const h=["ชื่อลูกค้า","ประเภทสื่อ","งบประมาณ","เลขใบเสนอราคา","วันขึ้นสื่อ","วันหมดอายุ","Lead Time","deadline ส่งไฟล์","deadline ต่อสัญญา","หมายเหตุ"];
+  const rows=campaigns.map(c=>[c.client,c.media_type,c.budget||"",c.quotation||"",c.start_date||"",c.end_date||"",c.artwork_lead||"14",getAlertDate(c,ALERT_RULES[0])||"",getAlertDate(c,ALERT_RULES[1])||"",c.notes||""]);
+  const csv="\uFEFF"+[h,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="planb.csv";a.click();URL.revokeObjectURL(url);showToast("ดาวน์โหลด CSV แล้ว!");
+}
+function exportXLSX(){
+  if(typeof XLSX==="undefined"){showToast("โหลด SheetJS ไม่สำเร็จ");return;}
+  const wb=XLSX.utils.book_new();
+  const h1=["ชื่อลูกค้า","ประเภทสื่อ","งบประมาณ","เลขใบเสนอราคา","Ads On","หมดอายุ","Lead Time","Deadline ส่งไฟล์","Deadline ต่อสัญญา","สถานะส่งไฟล์","สถานะต่อสัญญา","หมายเหตุ"];
+  const rows1=campaigns.map(c=>[c.client,c.media_type,c.budget?Number(c.budget):"",c.quotation||"",c.start_date||"",c.end_date||"",c.artwork_lead||defaultLead(c.media_type),getAlertDate(c,ALERT_RULES[0])||"",getAlertDate(c,ALERT_RULES[1])||"",(c.statuses?.artwork)||"Pending",(c.statuses?.renewal)||"Pending",c.notes||""]);
+  const ws1=XLSX.utils.aoa_to_sheet([h1,...rows1]);ws1["!cols"]=[{wch:25},{wch:12},{wch:15},{wch:18},{wch:14},{wch:14},{wch:10},{wch:16},{wch:16},{wch:14},{wch:14},{wch:30}];
+  XLSX.utils.book_append_sheet(wb,ws1,"แคมเปญ");
+  const alerts=getAlerts();const h2=["ลูกค้า","ประเภทสื่อ","แจ้งเตือน","Deadline","วันที่เหลือ","สถานะ"];
+  const rows2=alerts.map(a=>[a.client,a.media_type,a.rule.label,a.alertDate||"",a.days===null?"":a.days<0?`เลย ${Math.abs(a.days)} วัน`:a.days===0?"วันนี้":`อีก ${a.days} วัน`,(campaigns.find(c=>c.id===a.campId)?.statuses||{})[a.rule.key]||"Pending"]);
+  const ws2=XLSX.utils.aoa_to_sheet([h2,...rows2]);ws2["!cols"]=[{wch:25},{wch:12},{wch:14},{wch:14},{wch:14},{wch:12}];XLSX.utils.book_append_sheet(wb,ws2,"แจ้งเตือน");
+  const h3=["วันที่","สรุปประชุม","Follow-up","ข้อสังเกต","Task ทั้งหมด","เสร็จ"];
+  const rows3=Object.keys(wpData).sort().filter(ds=>wpData[ds]).map(ds=>{const d=wpData[ds];const t=d.tasks||[];return [ds,d.notes?.meeting||"",d.notes?.followup||"",d.notes?.remark||"",t.length,t.filter(x=>x.done).length];}).filter(r=>r[1]||r[2]||r[3]||r[4]>0);
+  const ws3=XLSX.utils.aoa_to_sheet([h3,...rows3]);ws3["!cols"]=[{wch:14},{wch:35},{wch:35},{wch:35},{wch:12},{wch:10}];XLSX.utils.book_append_sheet(wb,ws3,"Work Plan");
+  XLSX.writeFile(wb,`PlanB_${new Date().toISOString().slice(0,10)}.xlsx`);showToast("ดาวน์โหลด Excel แล้ว!");
+}
+
+// ── Init ──────────────────────────────────────────
+updateExportBtns();
+renderNameDisplay();
+// Firebase จะ load และ renderAll() เอง
+// fallback ถ้า Firebase ไม่โหลด
+setTimeout(()=>{if(!document.getElementById("page-workplan").innerHTML){rolloverPendingTasks();renderAll();}},3000);
+</script>
+</body>
+</html>
