@@ -461,7 +461,25 @@ function renderTaskList(ds){
 function refreshTaskList(ds){const el=document.getElementById("task-list-"+ds);if(el)el.innerHTML=renderTaskList(ds);}
 function ensureDay(ds){if(!wpData[ds])wpData[ds]={tasks:[],notes:{}};}
 function addTask(ds){const i=document.getElementById("task-input-"+ds);if(!i||!i.value.trim())return;ensureDay(ds);wpData[ds].tasks.push({id:Date.now().toString(),text:i.value.trim(),done:false,subs:[]});i.value="";save();refreshTaskList(ds);}
-function toggleTask(ds,tid){ensureDay(ds);wpData[ds].tasks=wpData[ds].tasks.map(t=>t.id===tid?{...t,done:!t.done}:t);save();refreshTaskList(ds);}
+function toggleTask(ds,tid){
+  ensureDay(ds);
+  // หา task ที่กำลังจะ toggle
+  const targetTask=wpData[ds].tasks.find(t=>t.id===tid);
+  if(!targetTask)return;
+  const newDoneState=!targetTask.done;
+  // หา origin id — ถ้าเป็น rollover ให้ใช้ rolledFrom เป็น origin, ถ้าเป็นต้นฉบับให้ใช้ id ตัวเอง
+  const originId=targetTask.rolledFrom||targetTask.id;
+  // sync ทุก task ที่มี origin เดียวกัน (ทั้งต้นฉบับและสำเนา rollover ทุกวัน)
+  Object.keys(wpData).forEach(key=>{
+    if(!wpData[key]||!wpData[key].tasks)return;
+    wpData[key].tasks=wpData[key].tasks.map(t=>{
+      const tOrigin=t.rolledFrom||t.id;
+      if(tOrigin===originId)return {...t,done:newDoneState};
+      return t;
+    });
+  });
+  save();refreshTaskList(ds);
+}
 function deleteTask(ds,tid){ensureDay(ds);wpData[ds].tasks=wpData[ds].tasks.filter(t=>t.id!==tid);save();refreshTaskList(ds);}
 function addSub(ds,tid){const i=document.getElementById("sub-input-"+tid);if(!i||!i.value.trim())return;ensureDay(ds);wpData[ds].tasks=wpData[ds].tasks.map(t=>t.id!==tid?t:{...t,subs:[...(t.subs||[]),{id:Date.now().toString(),text:i.value.trim(),done:false}]});i.value="";save();refreshTaskList(ds);}
 function toggleSub(ds,tid,sid){ensureDay(ds);wpData[ds].tasks=wpData[ds].tasks.map(t=>t.id!==tid?t:{...t,subs:(t.subs||[]).map(s=>s.id===sid?{...s,done:!s.done}:s)});save();refreshTaskList(ds);}
