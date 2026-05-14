@@ -333,21 +333,19 @@ function migrateAndDedup(){
   }
 }
 
-// ── Auto Rollover (ปรับใหม่ให้ใช้ originId) ────────
+// ── Auto Rollover (ใช้ originId) ──────────────────
 function rolloverPendingTasks(){
-  migrateAndDedup(); // ซ่อมข้อมูลเก่าก่อนทุกครั้ง
+  migrateAndDedup();
   const td=today();
   rolledOverDates=[];
   let changed=false;
 
-  // originId ที่ Done แล้ว — ไม่ต้อง rollover
   const doneOrigins=new Set();
   Object.values(wpData).forEach(d=>{
     if(!d||!d.tasks)return;
     d.tasks.forEach(t=>{if(t.done)doneOrigins.add(t.originId);});
   });
 
-  // originId ที่อยู่ในวันนี้แล้ว — ไม่ rollover ซ้ำ
   const todayOrigins=new Set();
   if(wpData[td]&&wpData[td].tasks){
     wpData[td].tasks.forEach(t=>todayOrigins.add(t.originId));
@@ -355,15 +353,17 @@ function rolloverPendingTasks(){
 
   Object.keys(wpData).forEach(ds=>{
     if(ds>=td)return;
-    const dd=wpData[ds];if(!dd||!dd.tasks)return;
-    const pending=dd.tasks.filter(t=>{
+    const dd=wpData[ds];
+    if(!dd||!dd.tasks)return;
+    const pending=dd.tasks.filter(function(t){
       return !t.done && !doneOrigins.has(t.originId) && !todayOrigins.has(t.originId);
     });
     if(!pending.length)return;
     if(!wpData[td])wpData[td]={tasks:[],notes:{}};
-    pending.forEach(t=>{
+    pending.forEach(function(t){
       wpData[td].tasks.push({
-        ...t,
+        text:t.text,
+        subs:t.subs?JSON.parse(JSON.stringify(t.subs)):[],
         id:Date.now().toString()+Math.random().toString(36).slice(2),
         originId:t.originId,
         rolledFrom:t.originId,
@@ -375,7 +375,10 @@ function rolloverPendingTasks(){
     });
     rolledOverDates.push({date:ds,count:pending.length});
   });
-  if(changed){localStorage.setItem(WK,JSON.stringify(wpData));if(window._saveToFirebase)window._saveToFirebase();}
+  if(changed){
+    localStorage.setItem(WK,JSON.stringify(wpData));
+    if(window._saveToFirebase)window._saveToFirebase();
+  }
 }
 
 // ── Tabs ──────────────────────────────────────────
@@ -403,14 +406,15 @@ function editName(){
 
 // ── Work Plan ─────────────────────────────────────
 function getDayAlerts(ds){
-  const arr=[];
-  campaigns.forEach(c=>{ALERT_RULES.forEach(rule=>{
-    if(getAlertDate(c,rule)!==ds)return;
-    // กรองที่ Done หรือ N/A ออก ไม่ต้องแสดงใน Work Plan
-    const st=(c.statuses||{})[rule.key]||"Pending";
-    if(st==="Done"||st==="N/A")return;
-    arr.push({client:c.client,rule,campId:c.id});
-  });});
+  var arr=[];
+  campaigns.forEach(function(c){
+    ALERT_RULES.forEach(function(rule){
+      if(getAlertDate(c,rule)!==ds)return;
+      var st=(c.statuses||{})[rule.key]||"Pending";
+      if(st==="Done"||st==="N/A")return;
+      arr.push({client:c.client,rule:rule,campId:c.id});
+    });
+  });
   return arr;
 }
 function renderWorkplan(){
@@ -779,9 +783,13 @@ function exportXLSX(){
 // ── Init ──────────────────────────────────────────
 updateExportBtns();
 renderNameDisplay();
-// Firebase จะ load และ renderAll() เอง
-// fallback ถ้า Firebase ไม่โหลด
-setTimeout(()=>{if(!document.getElementById("page-workplan").innerHTML){rolloverPendingTasks();renderAll();}},3000);
+setTimeout(function(){
+  var wp=document.getElementById("page-workplan");
+  if(wp && !wp.innerHTML){
+    rolloverPendingTasks();
+    renderAll();
+  }
+},3000);
 </script>
 </body>
 </html>
