@@ -290,8 +290,7 @@ function migrateAndDedup(){
   let changed=false;
   const td=today();
 
-  // STEP 1: ให้ทุก task มี originId — task เก่าที่ไม่มี rolledFrom ใช้ id ตัวเองเป็น origin
-  // task ที่ rolledFrom ชี้ไป id ที่ไม่มีอยู่จริง → ใช้ rolledFrom เป็น origin โดยตรง
+  // STEP 1: ให้ทุก task มี originId
   Object.keys(wpData).forEach(ds=>{
     if(!wpData[ds]||!wpData[ds].tasks)return;
     wpData[ds].tasks.forEach(t=>{
@@ -321,25 +320,11 @@ function migrateAndDedup(){
     const seen=new Set();
     const deduped=[];
     wpData[ds].tasks.forEach(t=>{
-      if(seen.has(t.originId)){changed=true;return;} // ข้ามตัวซ้ำ
+      if(seen.has(t.originId)){changed=true;return;}
       seen.add(t.originId);
       deduped.push(t);
     });
     wpData[ds].tasks=deduped;
-  });
-
-  // STEP 4: ลบ task ที่ Done ออกจากทุกวันที่ผ่านมา (เก็บไว้แค่วันที่มันถูกสร้าง/อยู่จริง)
-  // จริงๆ เก็บไว้ได้ แต่ถ้า rollover ไป future วันที่ผ่านมา Done แล้วไม่ต้องโชว์ rollover ซ้ำ
-  // STEP 5: รวม task เก่าที่ค้าง (ไม่ Done) ที่กระจายอยู่หลายวันก่อนหน้า → ให้เหลือสำเนาเดียวในวันนี้
-  const pendingOrigins=new Map(); // originId -> task object (ล่าสุด)
-  Object.keys(wpData).sort().forEach(ds=>{
-    if(ds>td)return;
-    if(!wpData[ds]||!wpData[ds].tasks)return;
-    wpData[ds].tasks.forEach(t=>{
-      if(!t.done&&!doneOrigins.has(t.originId)){
-        pendingOrigins.set(t.originId,{task:t,date:ds});
-      }
-    });
   });
 
   if(changed){
