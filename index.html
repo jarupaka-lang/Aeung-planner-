@@ -172,6 +172,7 @@ var salesName=localStorage.getItem(NK)||"";
 var wpMonth=new Date().getMonth(), wpYear=new Date().getFullYear();
 var alertFilter="all", editId=null, showDone=false;
 var rolledOverDates=[];
+var formMediaItems=[];
 
 function setStatus(msg,timeout){
   var t=document.getElementById("toast-bar");
@@ -443,9 +444,13 @@ function openDayModal(ds){
   var dayAlerts=getDayAlerts(ds);
   var alertsHTML="";
   if(dayAlerts.length){
-    alertsHTML='<div style="margin-bottom:14px"><div class="section-title">📌 Deadline วันนี้</div>';
+    alertsHTML='<div style="margin-bottom:14px"><div class="section-title">📌 Deadline วันนี้ (คลิกเพื่อดูรายละเอียด)</div>';
     dayAlerts.forEach(function(a){
-      alertsHTML+='<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:'+a.rule.bg+';border-radius:8px;margin-bottom:4px"><span style="font-size:11px;color:'+a.rule.tc+';font-weight:700">'+a.rule.label+'</span><span style="font-size:13px">'+esc(a.client)+'</span></div>';
+      alertsHTML+='<div class="day-alert-clickable" data-camp="'+a.campId+'" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:'+a.rule.bg+';border-radius:8px;margin-bottom:4px;cursor:pointer">'+
+        '<span style="font-size:11px;color:'+a.rule.tc+';font-weight:700">'+a.rule.label+'</span>'+
+        '<span style="font-size:13px;flex:1">'+esc(a.client)+'</span>'+
+        '<span style="font-size:11px;color:'+a.rule.tc+'">ดูรายละเอียด ›</span>'+
+      '</div>';
     });
     alertsHTML+='</div>';
   }
@@ -473,7 +478,70 @@ function openDayModal(ds){
   document.getElementById("modal-save").onclick=function(){saveDayModal(ds);};
   document.getElementById("task-add").onclick=function(){addTask(ds);};
   document.getElementById("task-input").addEventListener("keydown",function(e){if(e.key==="Enter")addTask(ds);});
+  // คลิก deadline เพื่อดูรายละเอียดแคมเปญ
+  bg.querySelectorAll(".day-alert-clickable").forEach(function(elm){
+    elm.onclick=function(e){
+      e.stopPropagation();
+      openCampDetail(elm.getAttribute("data-camp"));
+    };
+  });
   renderTaskList(ds);
+}
+
+function openCampDetail(campId){
+  var c=campaigns.filter(function(x){return x.id===campId;})[0];
+  if(!c)return;
+  var art=getAlertDate(c,ALERT_RULES[0]);
+  var ren=c.end_date?getAlertDate(c,ALERT_RULES[1]):"";
+  var rows=[
+    ["ประเภทสื่อหลัก",c.media_type],
+    ["เลขใบเสนอราคา",c.quotation||"—"],
+    ["งบประมาณ",c.budget?Number(c.budget).toLocaleString("th-TH")+" บาท":"—"],
+    ["วันขึ้นสื่อ (Ads On)",fmtDate(c.start_date)],
+    ["วันหมดอายุ",fmtDate(c.end_date)],
+    ["Lead Time ส่งไฟล์",(c.artwork_lead||defaultLead(c.media_type))+" วันทำการ"],
+    ["Deadline ส่งไฟล์",fmtDate(art)],
+    ["Deadline ต่อสัญญา",ren?fmtDate(ren):"—"]
+  ];
+  var rowHTML="";
+  rows.forEach(function(r){
+    rowHTML+='<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">'+
+      '<span style="font-size:12px;color:var(--text2)">'+r[0]+'</span>'+
+      '<span style="font-size:13px;font-weight:600;text-align:right">'+esc(r[1])+'</span>'+
+    '</div>';
+  });
+  var mediaHTML="";
+  if(c.media_items&&c.media_items.length){
+    mediaHTML='<div class="section-title">📍 รายการสื่อ ('+c.media_items.length+' จุด)</div>';
+    c.media_items.forEach(function(m,idx){
+      mediaHTML+='<div style="font-size:13px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:4px;display:flex;gap:8px">'+
+        '<span style="color:var(--primary);font-weight:700">'+(idx+1)+'</span><span>'+esc(m)+'</span></div>';
+    });
+  }
+  var statusHTML='<div class="section-title">สถานะงาน</div>';
+  ALERT_RULES.forEach(function(rule){
+    var st=(c.statuses||{})[rule.key]||"Pending";
+    var stColor=st==="Done"?"var(--accent)":st==="N/A"?"var(--text3)":"var(--amber)";
+    statusHTML+='<div style="display:flex;justify-content:space-between;padding:5px 0">'+
+      '<span style="font-size:12px;color:var(--text2)">'+rule.label+'</span>'+
+      '<span style="font-size:12px;font-weight:600;color:'+stColor+'">'+st+'</span>'+
+    '</div>';
+  });
+  var bg=document.getElementById("day-modal-bg");
+  bg.innerHTML='<div class="modal" id="camp-detail-inner">'+
+    '<div class="flex-between" style="margin-bottom:16px">'+
+      '<div style="font-weight:700;font-size:17px;color:var(--primary)">'+esc(c.client)+'</div>'+
+      '<button id="detail-close">✕ ปิด</button>'+
+    '</div>'+
+    '<div>'+rowHTML+'</div>'+
+    mediaHTML+
+    statusHTML+
+    (c.notes?'<div class="section-title">หมายเหตุ</div><div style="font-size:13px;color:var(--text2)">'+esc(c.notes)+'</div>':'')+
+  '</div>';
+  bg.classList.add("show");
+  bg.removeAttribute("data-ds");
+  document.getElementById("camp-detail-inner").onclick=function(e){e.stopPropagation();};
+  document.getElementById("detail-close").onclick=function(){bg.classList.remove("show");};
 }
 function renderTaskList(ds){
   var el=document.getElementById("task-list");
@@ -744,15 +812,23 @@ function renderCampaigns(){
   var f=editId?(campaigns.filter(function(c){return c.id===editId;})[0]||{}):{};
   var mediaOpt="";
   MEDIA_TYPES.forEach(function(t){mediaOpt+='<option '+((f.media_type||"Billboard")===t?"selected":"")+'>'+t+'</option>';});
+  // รายการสื่อย่อย
+  formMediaItems = (f.media_items?JSON.parse(JSON.stringify(f.media_items)):[]);
   var formHTML=
     '<div class="card" style="border:2px solid var(--primary-light);margin-bottom:16px">'+
       '<div style="font-size:15px;font-weight:700;margin-bottom:4px;color:var(--primary)">'+(editId?"✏️ แก้ไขแคมเปญ":"✨ เพิ่มแคมเปญใหม่")+'</div>'+
       '<div class="section-title">ข้อมูลทั่วไป</div>'+
       '<div class="grid2">'+
         '<div class="span2"><label class="lbl">ชื่อลูกค้า *</label><input id="f-client" value="'+esc(f.client||"")+'" placeholder="เช่น บริษัท ABC จำกัด"></div>'+
-        '<div><label class="lbl">ประเภทสื่อ</label><select id="f-media">'+mediaOpt+'</select></div>'+
+        '<div><label class="lbl">ประเภทสื่อหลัก</label><select id="f-media">'+mediaOpt+'</select></div>'+
         '<div><label class="lbl">งบประมาณ (บาท)</label><input id="f-budget" type="number" value="'+esc(f.budget||"")+'" placeholder="0"></div>'+
         '<div class="span2"><label class="lbl">เลขใบเสนอราคา</label><input id="f-quotation" value="'+esc(f.quotation||"")+'" placeholder="เช่น QT-2568-001"></div>'+
+      '</div>'+
+      '<div class="section-title">รายการสื่อ (จุดติดตั้ง)</div>'+
+      '<div id="media-items-list"></div>'+
+      '<div style="display:flex;gap:6px;margin-top:6px">'+
+        '<input id="media-item-input" placeholder="เช่น Billboard L-BK-ETW-8B ถนนวิภาวดี-รังสิต" style="flex:1;font-size:13px">'+
+        '<button id="media-item-add">+ เพิ่มสื่อ</button>'+
       '</div>'+
       '<div class="section-title">วันที่</div>'+
       '<div class="grid2">'+
@@ -784,7 +860,7 @@ function renderCampaigns(){
     '<div id="camp-form" style="display:'+(editId!==null?"block":"none")+'">'+formHTML+'</div>'+
     '<div>'+listHTML+'</div>'+
     (!campaigns.length?'<div style="text-align:center;padding:3rem;color:var(--text2)">ยังไม่มีแคมเปญ กดปุ่ม + เพื่อเริ่มต้น</div>':'');
-  document.getElementById("camp-add-btn").onclick=function(){editId=null;renderCampaigns();document.getElementById("camp-form").style.display="block";};
+  document.getElementById("camp-add-btn").onclick=function(){editId=null;renderCampaigns();document.getElementById("camp-form").style.display="block";renderMediaItems();};
   if(editId!==null||document.getElementById("camp-form").style.display==="block"){
     var fc=document.getElementById("form-cancel");
     if(fc)fc.onclick=function(){editId=null;renderCampaigns();};
@@ -796,6 +872,11 @@ function renderCampaigns(){
       var e=document.getElementById(id);
       if(e)e.addEventListener("input",updateLeadPreview);
     });
+    var mAdd=document.getElementById("media-item-add");
+    if(mAdd)mAdd.onclick=addMediaItem;
+    var mInp=document.getElementById("media-item-input");
+    if(mInp)mInp.addEventListener("keydown",function(e){if(e.key==="Enter")addMediaItem();});
+    renderMediaItems();
     updateLeadPreview();
   }
   el.querySelectorAll(".camp-edit").forEach(function(b){
@@ -809,6 +890,36 @@ function renderCampaigns(){
       }
     };
   });
+}
+function renderMediaItems(){
+  var el=document.getElementById("media-items-list");
+  if(!el)return;
+  if(!formMediaItems.length){
+    el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:4px 0">ยังไม่มีรายการสื่อ — เพิ่มได้ด้านล่าง</div>';
+    return;
+  }
+  var html="";
+  formMediaItems.forEach(function(m,idx){
+    html+='<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:4px">'+
+      '<span style="font-size:11px;background:var(--primary-light);color:var(--primary);border-radius:20px;padding:2px 8px;font-weight:600">'+(idx+1)+'</span>'+
+      '<span style="flex:1;font-size:12px">'+esc(m)+'</span>'+
+      '<button class="sm danger media-item-del" data-idx="'+idx+'">✕</button>'+
+    '</div>';
+  });
+  el.innerHTML=html;
+  el.querySelectorAll(".media-item-del").forEach(function(b){
+    b.onclick=function(){
+      formMediaItems.splice(parseInt(b.getAttribute("data-idx")),1);
+      renderMediaItems();
+    };
+  });
+}
+function addMediaItem(){
+  var inp=document.getElementById("media-item-input");
+  if(!inp||!inp.value.trim())return;
+  formMediaItems.push(inp.value.trim());
+  inp.value="";
+  renderMediaItems();
 }
 function updateLeadPreview(){
   var s=document.getElementById("f-start");
@@ -829,6 +940,15 @@ function campCardHTML(c){
     if(!pair[1])return;
     dateHTML+='<div class="date-chip"><div class="lbl">'+pair[0]+'</div><div class="val">'+fmtDate(pair[1])+'</div>'+urgTag(daysUntil(pair[1]))+'</div>';
   });
+  var mediaHTML="";
+  if(c.media_items&&c.media_items.length){
+    mediaHTML='<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">'+
+      '<div style="font-size:11px;color:var(--text2);font-weight:600;margin-bottom:4px">📍 รายการสื่อ ('+c.media_items.length+' จุด)</div>';
+    c.media_items.forEach(function(m,idx){
+      mediaHTML+='<div style="font-size:12px;color:var(--text);padding:3px 0;display:flex;gap:6px"><span style="color:var(--primary);font-weight:600">'+(idx+1)+'.</span><span>'+esc(m)+'</span></div>';
+    });
+    mediaHTML+='</div>';
+  }
   return '<div class="card">'+
     '<div class="flex-between" style="margin-bottom:10px">'+
       '<div><div style="font-weight:700;font-size:15px">'+esc(c.client)+'</div>'+
@@ -836,6 +956,7 @@ function campCardHTML(c){
           '<span class="pill" style="background:var(--primary-light);color:var(--primary)">'+esc(c.media_type)+'</span>'+
           (c.quotation?'<span class="pill" style="background:#f0f0f8;color:var(--gray)">📄 '+esc(c.quotation)+'</span>':'')+
           (c.budget?'<span class="pill" style="background:var(--accent-light);color:var(--accent)">'+Number(c.budget).toLocaleString("th-TH")+' บาท</span>':'')+
+          (c.media_items&&c.media_items.length?'<span class="pill" style="background:var(--blue-light);color:var(--blue)">📍 '+c.media_items.length+' สื่อ</span>':'')+
         '</div>'+
       '</div>'+
       '<div style="display:flex;gap:8px">'+
@@ -844,6 +965,7 @@ function campCardHTML(c){
       '</div>'+
     '</div>'+
     '<div class="camp-card-dates">'+dateHTML+'</div>'+
+    mediaHTML+
     (c.notes?'<div style="font-size:12px;color:var(--text2);margin-top:10px;border-top:1px solid var(--border);padding-top:8px">'+esc(c.notes)+'</div>':'')+
   '</div>';
 }
@@ -855,6 +977,7 @@ function saveCamp(){
     id:editId||(Date.now().toString()+Math.random().toString(36).slice(2)),
     client:client,
     media_type:document.getElementById("f-media").value,
+    media_items:formMediaItems.slice(),
     budget:document.getElementById("f-budget").value,
     quotation:document.getElementById("f-quotation").value,
     start_date:document.getElementById("f-start").value,
@@ -869,6 +992,7 @@ function saveCamp(){
     campaigns.push(obj);
   }
   editId=null;
+  formMediaItems=[];
   save();renderAll();
 }
 
