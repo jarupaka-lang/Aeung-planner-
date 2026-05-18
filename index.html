@@ -813,8 +813,7 @@ function renderCampaigns(){
   var mediaOpt="";
   MEDIA_TYPES.forEach(function(t){mediaOpt+='<option '+((f.media_type||"Billboard")===t?"selected":"")+'>'+t+'</option>';});
   // รายการสื่อย่อย
-  formMediaItems = (f.media_items?JSON.parse(JSON.stringify(f.media_items)):[]);
-  var formHTML=
+  formMediaItems = (f.media_items?JSON.parse(JSON.stringify(f.media_items)):[]);  var formHTML=
     '<div class="card" style="border:2px solid var(--primary-light);margin-bottom:16px">'+
       '<div style="font-size:15px;font-weight:700;margin-bottom:4px;color:var(--primary)">'+(editId?"✏️ แก้ไขแคมเปญ":"✨ เพิ่มแคมเปญใหม่")+'</div>'+
       '<div class="section-title">ข้อมูลทั่วไป</div>'+
@@ -860,24 +859,10 @@ function renderCampaigns(){
     '<div id="camp-form" style="display:'+(editId!==null?"block":"none")+'">'+formHTML+'</div>'+
     '<div>'+listHTML+'</div>'+
     (!campaigns.length?'<div style="text-align:center;padding:3rem;color:var(--text2)">ยังไม่มีแคมเปญ กดปุ่ม + เพื่อเริ่มต้น</div>':'');
-  document.getElementById("camp-add-btn").onclick=function(){editId=null;renderCampaigns();document.getElementById("camp-form").style.display="block";renderMediaItems();};
+  document.getElementById("camp-add-btn").onclick=function(){editId=null;formMediaItems=[];renderCampaigns();document.getElementById("camp-form").style.display="block";renderMediaItems();bindFormEvents();};
+  // bind ปุ่มของฟอร์ม ถ้าฟอร์มเปิดอยู่
   if(editId!==null||document.getElementById("camp-form").style.display==="block"){
-    var fc=document.getElementById("form-cancel");
-    if(fc)fc.onclick=function(){editId=null;renderCampaigns();};
-    var fs=document.getElementById("form-save");
-    if(fs)fs.onclick=saveCamp;
-    var fm=document.getElementById("f-media");
-    if(fm)fm.onchange=function(){document.getElementById("f-lead").value=defaultLead(fm.value);updateLeadPreview();};
-    ["f-start","f-lead"].forEach(function(id){
-      var e=document.getElementById(id);
-      if(e)e.addEventListener("input",updateLeadPreview);
-    });
-    var mAdd=document.getElementById("media-item-add");
-    if(mAdd)mAdd.onclick=addMediaItem;
-    var mInp=document.getElementById("media-item-input");
-    if(mInp)mInp.addEventListener("keydown",function(e){if(e.key==="Enter")addMediaItem();});
-    renderMediaItems();
-    updateLeadPreview();
+    bindFormEvents();
   }
   el.querySelectorAll(".camp-edit").forEach(function(b){
     b.onclick=function(){editId=b.getAttribute("data-id");renderCampaigns();};
@@ -890,6 +875,24 @@ function renderCampaigns(){
       }
     };
   });
+}
+function bindFormEvents(){
+  var fc=document.getElementById("form-cancel");
+  if(fc)fc.onclick=function(){editId=null;formMediaItems=[];renderCampaigns();};
+  var fs=document.getElementById("form-save");
+  if(fs)fs.onclick=saveCamp;
+  var fm=document.getElementById("f-media");
+  if(fm)fm.onchange=function(){document.getElementById("f-lead").value=defaultLead(fm.value);updateLeadPreview();};
+  ["f-start","f-lead"].forEach(function(id){
+    var e=document.getElementById(id);
+    if(e)e.oninput=updateLeadPreview;
+  });
+  var mAdd=document.getElementById("media-item-add");
+  if(mAdd)mAdd.onclick=addMediaItem;
+  var mInp=document.getElementById("media-item-input");
+  if(mInp)mInp.onkeydown=function(e){if(e.key==="Enter"){e.preventDefault();addMediaItem();}};
+  renderMediaItems();
+  updateLeadPreview();
 }
 function renderMediaItems(){
   var el=document.getElementById("media-items-list");
