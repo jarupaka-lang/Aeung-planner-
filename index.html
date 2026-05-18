@@ -854,12 +854,35 @@ function renderCampaigns(){
   el.innerHTML=
     '<div class="flex-between" style="margin-bottom:14px">'+
       '<div style="font-size:15px;font-weight:700">แคมเปญ ('+campaigns.length+')</div>'+
-      '<button class="primary" id="camp-add-btn">+ เพิ่มแคมเปญ</button>'+
+      '<div style="display:flex;gap:6px">'+
+        '<button id="camp-debug-btn" style="font-size:11px">🩺 Debug</button>'+
+        '<button class="primary" id="camp-add-btn">+ เพิ่มแคมเปญ</button>'+
+      '</div>'+
     '</div>'+
     '<div id="camp-form" style="display:'+(editId!==null?"block":"none")+'">'+formHTML+'</div>'+
     '<div>'+listHTML+'</div>'+
     (!campaigns.length?'<div style="text-align:center;padding:3rem;color:var(--text2)">ยังไม่มีแคมเปญ กดปุ่ม + เพื่อเริ่มต้น</div>':'');
   document.getElementById("camp-add-btn").onclick=function(){editId=null;formMediaItems=[];renderCampaigns();document.getElementById("camp-form").style.display="block";renderMediaItems();bindFormEvents();};
+  document.getElementById("camp-debug-btn").onclick=function(){
+    var info=[];
+    info.push("=== DEBUG REPORT ===");
+    info.push("campaigns count: "+campaigns.length);
+    info.push("editId: "+editId);
+    info.push("formMediaItems: "+JSON.stringify(formMediaItems));
+    var form=document.getElementById("camp-form");
+    info.push("form exists: "+(!!form));
+    info.push("form display: "+(form?form.style.display:"N/A"));
+    var fs=document.getElementById("form-save");
+    info.push("save btn exists: "+(!!fs));
+    info.push("save btn onclick: "+(fs?(typeof fs.onclick):"N/A"));
+    var fc=document.getElementById("f-client");
+    info.push("client input exists: "+(!!fc));
+    info.push("client value: "+(fc?fc.value:"N/A"));
+    var ma=document.getElementById("media-item-add");
+    info.push("media-add btn exists: "+(!!ma));
+    info.push("media-add onclick: "+(ma?(typeof ma.onclick):"N/A"));
+    alert(info.join("\n"));
+  };
   // bind ปุ่มของฟอร์ม ถ้าฟอร์มเปิดอยู่
   if(editId!==null||document.getElementById("camp-form").style.display==="block"){
     bindFormEvents();
